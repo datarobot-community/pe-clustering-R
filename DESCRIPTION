@@ -1,0 +1,33 @@
+Package: datarobot.pe.clustering
+Type: Package
+Title: Prediction Explanation Clustering for DataRobot
+Version: 0.9.0
+Authors@R: c(
+    person("Andrew", "Mathis", email = "andrew.mathis@datarobot.com", role = c("aut","cre")),
+    person("DataRobot, Inc.", role = "cph"))
+Description: A package for clustering row-level prediction explanations from a machine learning model in the DataRobot platform.
+License: Apache License (>= 2.0)
+Encoding: UTF-8
+LazyData: true
+Depends:
+    R (>= 3.5.0),
+    datarobot (>= 2.14.1),
+Imports:
+    rlang,
+    stats,
+    dplyr,
+    caret,
+    MASS,
+    dbscan,
+    reshape2,
+    umap
+Suggests: 
+    testthat,
+    knitr,
+    rmarkdown,
+    mlbench,
+    ggplot2,
+    tidyr,
+    yaml
+RoxygenNote: 6.1.1
+VignetteBuilder: knitr

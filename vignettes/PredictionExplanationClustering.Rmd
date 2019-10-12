@@ -1,0 +1,203 @@
+---
+title: "Prediction Explanation Clustering"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Prediction Explanation Clustering}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup, message = FALSE}
+library(datarobot.pe.clustering)
+library(knitr)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+```
+
+
+# Setting up the data
+
+The data we will use for this example is the Pima Indians Diabetes dataset from the `mlbench` package.
+
+
+```{r}
+library(mlbench)
+data(PimaIndiansDiabetes)
+```
+
+
+```{r, echo = FALSE, eval = FALSE}
+
+#####
+# Data Refresh: For Package Developer Use Only
+#####
+
+  # Re-calculate the DataRobot data feeding the vignette. This should only be necessary if there is some kind of change in DataRobot prediction explanations, model objects, or project objects as returned by the datarobot R package.
+
+# Warning: use devtools::load_all() to before setting this to TRUE, as you'll want to use the most up-to-date package functions
+REFRESH_VIGNETTE_DATA <- FALSE 
+
+if (REFRESH_VIGNETTE_DATA) {
+  
+   # Read in project and model IDs from a YAML file.
+      if (!requireNamespace("yaml", quietly = TRUE)) {
+        stop("Package \"yaml\" needed to read in an existing project and model IDs from disk. Please install it, or alter this code to hardcode project and model IDs.",
+             call. = FALSE)
+      }
+  project_and_model_ids <- yaml::read_yaml('vignette_project_model_ids.yaml')  # must be project and model built on Pima indians data
+  project_id <- project_and_model_ids$project
+  model_id <- project_and_model_ids$model
+  project <- tryCatch({
+        datarobot::GetProject(project_id)
+      }, error = function(e) {
+        stop(paste('Error fetching project for vignette refresh Check tests/testthat/test_project_model_ids.yaml. Exception: ',e))
+      })
+  model <- tryCatch({
+        datarobot::GetModel(project, model_id)
+      }, error = function(e) {
+        stop(paste('Error fetching model for vignette refresh Check tests/testthat/test_project_model_ids.yaml. Exception: ',e))
+      })
+
+  features_to_summarize <- datarobot.pe.clustering:::get_top_feature_names(model, num_feature_summarizations = 10)
+
+  
+  pe_frame <- datarobot.pe.clustering:::get_prediction_explanation_df_outer(model, PimaIndiansDiabetes, max_explanations=3)
+  
+  saveRDS(pe_frame, 'example_pe_frame_vignette.Rds')
+  saveRDS(features_to_summarize, 'example_features_to_summarize.Rds')
+}
+```
+
+
+# Obtaining a DataRobot model
+
+To use prediction explanation clustering, we first need a relevant DataRobot model. For full documentation on fitting models with DataRobot, see the `datarobot` package.
+
+For this example, we'll start a new DataRobot project on the Pima Indians Diabetes Dataset, training models to predict diabetes diagnosis. Then we'll grab its top-performing model to use going forward.
+
+```{r, echo = TRUE, eval = FALSE}
+project <- StartProject(dataSource = PimaIndiansDiabetes,
+                        projectName = "PredictionExplanationClusteringVignette",
+                        target = "diabetes",
+                        mode = "quick",
+                        wait = TRUE)
+models <- ListModels(project$projectId)
+model <- models[[1]]
+```
+
+```{r, echo = FALSE}
+project <- datarobot:::as.dataRobotProject(list(projectId='vignette'))
+model <- datarobot:::as.dataRobotModel(list(modelId='vignette', projectId='test', modelType="RandomForest Classifier (Gini)"))
+```
+
+
+```{r}
+summary(model)['modelType']
+```
+
+
+# Running prediction explanation clustering
+
+For full validity, we should run prediction explanation clustering on a separate dataset that was not used for training the machine learning models. For example purposes, however, we'll just re-use the training dataset.
+
+```{r}
+scoring_df <- PimaIndiansDiabetes
+kable(head(scoring_df))
+```
+
+Next we run our prediction explanation clustering functions. This will run the prediction explanations themselves, and then perform the clustering routines on those explanations.
+
+```{r, echo = TRUE, eval = FALSE}
+results <- cluster_and_summarize_prediction_explanations(
+  model,
+  scoring_df
+)
+```
+
+
+```{r, echo = FALSE}
+pe_frame <- readRDS('example_pe_frame_vignette.Rds')
+features_to_summarize <- readRDS('example_features_to_summarize.Rds')
+results <- datarobot.pe.clustering:::calculate_results(
+  pe_frame,
+  scoring_df,
+  features_to_summarize,
+  num_neighbors=50,
+  min_dist=10^-100,
+  min_points=25
+)
+```
+
+We can use `summary()` to view a summary of the clusters based on the features most important to the predictive performance of the model. Here we can see that the clusters differ on average across a wide array of features.
+
+```{r}
+kable(summary(results))
+```
+
+We can plot the results to see how the clusters are spread out in the reduced-dimensionality space, to get a quick sense of how well the clusters are separated from each other in prediction explanation space.
+
+```{r fig.width=7}
+plot(results)
+```
+
+```{r, echo = FALSE, eval = FALSE}
+# Example plotting with ggplot2
+ggplot(results$plot_data, aes(x=dim1, y=dim2, color=clusterID)) +
+  geom_point()+
+  #theme(legend.position='none')+
+  labs(title='Records by Prediction Explanation Cluster', x='Reduced Dimension 1', y='Reduced Dimension 2')
+
+```
+
+To get further insights, we can join the `cluster_ids` back to our scoring dataset and examine the clusters based on the source variables.
+
+```{r}
+scoring_df_with_clusters <- scoring_df
+scoring_df_with_clusters$cluster <- factor(results$cluster_ids)
+kable(head(scoring_df_with_clusters))
+```
+
+We can see from the summary of the clustering results that the clusters differ across a variety of features important to the predictive performance of the model. Examining the distributions of these features, we can see how the clusters differ from each other. Because these clusters are derived from the prediction explanation clustering, we can have more confidence that the differences between the clusters are associated with meaningful differences in diabetes risk.
+
+
+```{r, fig.width=7}
+scoring_df_with_clusters %>%
+  select(-diabetes)%>%
+  gather(key='feature',value='value',-cluster)%>%
+  ggplot(aes(x=value, group=cluster, color=cluster, fill=cluster)) +
+  geom_density(alpha=0.2)+
+  facet_wrap(~feature, scales='free')+
+  theme_bw()
+  
+```
+
+In addition to looking at the clusters based on the original features, we can also look at the clusters based on the prediction explanations strengths.
+
+```{r}
+strength_matrix_with_clusters <- results$strength_matrix
+strength_matrix_with_clusters$cluster <- factor(results$cluster_ids)
+kable(head(strength_matrix_with_clusters))
+```
+
+Here we can see that cluster 1 is characterized by a number of factors that lead to a lower risk profile, whereas cluster 3 is characterized by a number of factors that are contributing to a higher risk profile.
+
+
+```{r, fig.width=7}
+strength_matrix_with_clusters %>%
+  gather(feature, strength, -cluster)%>%
+  ggplot(aes(x=strength, group=cluster, color=cluster, fill=cluster)) +
+  geom_density(alpha=0.2)+
+  facet_wrap(~feature, scales='free')+
+  xlab('Strength of prediction explanation')+
+  theme_bw()
+  
+```
+

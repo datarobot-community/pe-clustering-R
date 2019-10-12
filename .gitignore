@@ -34,3 +34,15 @@ vignettes/*.pdf
 
 # Shiny token, see https://shiny.rstudio.com/articles/shinyapps.html
 rsconnect/
+
+# Mac OS folder information
+.DS_Store
+
+# Preview/knitting of README markdown
+README.html
+
+# Further R package
+.gitignore
+inst/doc
+doc
+Meta

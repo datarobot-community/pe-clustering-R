@@ -1,0 +1,5 @@
+---
+# This file will supply project and model IDs to the testing code, in the event that
+# live testing is occuring and use of an existing project is specified.
+project: PROJECT_ID
+model: MODEL_ID
