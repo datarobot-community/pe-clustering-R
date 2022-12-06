@@ -1,3 +1,5 @@
+**Please note:** The code in these repos is sourced from the DataRobot user community and is not owned or maintained by DataRobot, Inc. You may need to make edits or updates for this code to function properly in your environment.
+
 # Prediction Explanation Clustering (R package)
 
 This repository hosts the R package `datarobot.pe.clustering`. This package allows users of the DataRobot platform to perform dimensionality reduction and clustering on DataRobot's prediction explanations.
